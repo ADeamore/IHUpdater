@@ -16,7 +16,19 @@ Public Class Form1
 
     Private Sub doform1() Handles MyBase.Shown
         'ADD A CATCH TO CHECK TO SEE IF YOU'RE ONLINE. IF YOU'RE NOT, FAIL OUT AND ALLOW FOR LAUNCHING.
-        start_tree()
+        Dim hasnetwork = CheckForInternetConnection()
+
+        If hasnetwork Then
+            start_tree()
+        Else
+            If Not Directory.Exists(My.Application.Info.DirectoryPath + "\IHDir\") Then
+                Text_Display_Gui.Text = "No network connection detected. Client can't install required files to run."
+            Else
+                Text_Display_Gui.Text = "Current network not established. Switching to previous client version to attempt being able to launch."
+                btn_Launch.Enabled = True
+                btn_Launch.Text = "LAUNCH OFFLINE"
+            End If
+        End If
     End Sub
 
     Private Sub Text_Display_Gui_Click(sender As Object, e As EventArgs) Handles Text_Display_Gui.Click
@@ -92,6 +104,8 @@ Public Class Form1
 
         'compare the local list version to the remote version and download remote files
         Compare_Versions()
+
+        btn_Launch.Enabled = 1
     End Function
 
     Function Loop_Files(vardirectory As String, masterdirectory As String, textfile As String) As Task
@@ -336,8 +350,17 @@ Public Class Form1
 
             End If
         Next
-
-        ' Un-grey launch button
+    End Function
+    Function CheckForInternetConnection() As Boolean
+        Try
+            Using client = New WebClient()
+                Using stream = client.OpenRead("http://www.google.com")
+                    Return True
+                End Using
+            End Using
+        Catch
+            Return False
+        End Try
     End Function
 
 
