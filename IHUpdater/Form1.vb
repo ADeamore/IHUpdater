@@ -29,6 +29,8 @@ Public Class Form1
 
         Dim textfile As String = My.Application.Info.DirectoryPath + "\Filelist.txt"
 
+        'delete local data files from previous run
+
         Try
             My.Computer.FileSystem.DeleteFile(textfile)
         Catch ex As Exception
@@ -47,6 +49,7 @@ Public Class Form1
 
         End Try
 
+        'download the remote blacklists
 
         Dim remoteUri As String = "https://f004.backblazeb2.com/file/InfiniteHorizons/fileblacklist.txt"
         Dim fileName As String = "fileblacklist.txt"
@@ -66,6 +69,8 @@ Public Class Form1
             client.DownloadFile(remoteUri, fileName)
         End Using
 
+        'generate the working directory
+
         Dim localfilepath As String = My.Application.Info.DirectoryPath + "\IHDir\"
 
         If Not Directory.Exists(localfilepath) Then
@@ -73,6 +78,7 @@ Public Class Form1
             Directory.CreateDirectory(localfilepath)
         End If
 
+        'run loopfiles to generate the local file list
         Loop_Files(localfilepath, localfilepath, textfile)
 
         'DELETE ME ------------------------------------------------------------------------
@@ -84,10 +90,13 @@ Public Class Form1
 
         Text_Display_Gui.Text = "Compiling File List for Version Pairity Check" + Environment.NewLine + "File List compiled, Comparing Versions. " + percentage.ToString() + "%"
 
+        'compare the local list version to the remote version and download remote files
         Compare_Versions()
     End Function
 
     Function Loop_Files(vardirectory As String, masterdirectory As String, textfile As String) As Task
+
+        'store the blacklists into arrays to compare later
 
         Dim folderblacklist As New ArrayList
         FileOpen(1, My.Application.Info.DirectoryPath + "\folderblacklist.txt", OpenMode.Input)
@@ -103,6 +112,7 @@ Public Class Form1
         Loop
         FileClose(1)
 
+        'loop through the folders, skipping blacklisted ones
         For Each foldername As String In Directory.GetDirectories(vardirectory)
             Dim pass As Boolean = True
 
@@ -114,9 +124,12 @@ Public Class Form1
             Next
 
             If pass Then
+                'if they're not blacklisted, recurse back into the function and go again.
                 Loop_Files(foldername, masterdirectory, textfile)
             End If
         Next
+
+        'after recursion hits a pause point, actually store the listed files into the masterlist
 
         Dim StrFile As String
         StrFile = Dir(vardirectory + "\")
@@ -245,7 +258,10 @@ Public Class Form1
             End If
         Next
         For Each Item In getarray
+
             Dim getfile As String = Item
+
+            'fix random jank from filename storage
 
             If getfile.First() = "\" Then
                 getfile = getfile.Replace("\", "")
@@ -253,14 +269,7 @@ Public Class Form1
 
             getfile = getfile.Replace("ï»¿", "")
 
-            ' actually get the file from the domain
-
-            Dim fileurl As String = getfile.Replace("\", "/")
-            remoteUri = "https://f004.backblazeb2.com/file/InfiniteHorizons/IHDir/" + fileurl
-            fileName = localdirectory + getfile
-
-            remoteUri = remoteUri.Replace("+", "%2b")
-            remoteUri = remoteUri.Replace(" ", "%20")
+            ' parse the filepath from the filename for manipulation
 
             Dim pathtrack As String
 
@@ -276,12 +285,26 @@ Public Class Form1
 
             pathtrack = fileName.Substring(0, lastslash)
 
+            'create the directory for it
 
             Try
                 My.Computer.FileSystem.CreateDirectory(pathtrack)
             Catch ex As Exception
 
             End Try
+
+            'turn the filepath and filename into a usable url
+
+            Dim fileurl As String = getfile.Replace("\", "/")
+
+            fileurl = fileurl.Substring(0, lastslash) + WebUtility.UrlEncode(fileurl.Substring(lastslash + 1, fileurl.Length))
+
+            'append the new url snippet to the backblaze url
+
+            remoteUri = "https://f004.backblazeb2.com/file/InfiniteHorizons/IHDir/" + fileurl
+            fileName = localdirectory + getfile
+
+            'download the file as temp.tmp, and then move it to the folder it needs to be in
 
             Using client As New WebClient()
                 client.Credentials = New NetworkCredential(username, password)
@@ -292,6 +315,8 @@ Public Class Form1
             My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\Temp.tmp")
 
             counter = counter + 1
+
+            'incrementally update the percentage complete value
 
             If counter Mod 5 = 0 Then
 
