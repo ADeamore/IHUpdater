@@ -127,8 +127,6 @@
   <ItemGroup>
     <Content Include="Infinite Horizons Discord Logo.ico" />
     <None Include="Resources\Launcher_Background.png" />
-    <None Include="Resources\Launcher_Background_21.png" />
-    <None Include="Resources\Launcher_Background_2.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
 </Project>
