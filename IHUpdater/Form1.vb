@@ -1,34 +1,157 @@
-﻿Imports System.IO
+﻿Imports System.ComponentModel
+Imports System.Data.SqlClient
+Imports System.Drawing.Imaging
+Imports System.IO
 Imports System.Net
+Imports System.Net.WebRequestMethods
+Imports System.Reflection
+Imports System.Security.Cryptography
+Imports System.Threading
+Imports System.Windows.Forms.VisualStyles.VisualStyleElement
 Imports Microsoft.VisualBasic.Logging
 
 Public Class Form1
 
     Dim Firstinstall As Boolean = False
+    Dim scrollstart As Int32 = 0
+    Dim changelog As New ArrayList
+    Dim scrollsize As Int16 = 33
+    Dim changelogdisplaylist As New ArrayList
 
     Private Sub btn_Launch_Click(sender As Object, e As EventArgs) Handles btn_Launch.Click
         ' MsgBox("Hello World!")
-        Application.Exit()
-    End Sub
 
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", ".MinecraftTemp")
+        Catch ex As Exception
+            MsgBox("Failed to rename .minecraft file. To temporary folder.")
+        End Try
+
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\", ".Minecraft")
+        Catch ex As Exception
+            MsgBox("Failed to rename IHDir files. To .minecraft")
+        End Try
+
+        Dim newprocess As New ProcessStartInfo("CMD.EXE")
+        newprocess.WindowStyle = ProcessWindowStyle.Hidden
+        newprocess.CreateNoWindow = True
+        newprocess.UseShellExecute = False
+        newprocess.Arguments = "/c MinecraftLauncher.exe"
+
+        Dim minecraftlauncher = Process.Start(newprocess)
+
+        Me.Visible = False
+
+        minecraftlauncher.WaitForExit()
+
+        Me.Visible = True
+
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", "IHDir")
+        Catch ex As Exception
+            MsgBox("Failed to rename .minecraft files. To IHDir")
+        End Try
+
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.MinecraftTemp\", ".Minecraft")
+        Catch ex As Exception
+            MsgBox("Failed to rename temporary folder to .minecraft folder.")
+        End Try
+
+    End Sub
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
     End Sub
-
     Private Sub doform1() Handles MyBase.Shown
+
+        Me.MinimumSize = Me.Size
+        Me.MaximumSize = Me.MinimumSize
+
+        lbl_creator_credits.Text = "Modpack Compiled by: " + Environment.NewLine +
+            "Kate 'BurgundyPetal' H. and Avaela 'ItAvvy' D." + Environment.NewLine +
+            "Launcher Designed by: " + Environment.NewLine +
+            "Avaela 'ItAvvy' D."
+
+        System.Windows.Forms.Application.DoEvents()
         'ADD A CATCH TO CHECK TO SEE IF YOU'RE ONLINE. IF YOU'RE NOT, FAIL OUT AND ALLOW FOR LAUNCHING.
+
+
+        'DELETE ME -----------------------------
+        'hasnetwork = False
+        'DELETE ME -----------------------------
+
         Dim hasnetwork = CheckForInternetConnection()
+
+        If hasnetwork Then
+
+            Text_Display_Gui.Text = "Compiling File List for Version Pairity Check:"
+            System.Windows.Forms.Application.DoEvents()
+
+            Try
+                My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\changelog.txt")
+            Catch ex As Exception
+
+            End Try
+
+
+            Dim remoteUri As String = "https://download.adeamore.com/changelog.txt"
+            Dim fileName As String = "\changelog.txt"
+            Dim password As String = "..."
+            Dim username As String = "..."
+
+            Using client As New WebClient()
+                client.Credentials = New NetworkCredential(username, password)
+                client.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
+            End Using
+        End If
+
+        'set up changelog arraylist
+
+
+        If My.Computer.FileSystem.FileExists(My.Application.Info.DirectoryPath + "\changelog.txt") Then
+            FileOpen(1, My.Application.Info.DirectoryPath + "\changelog.txt", OpenMode.Input)
+            Do While Not EOF(1)
+                Me.changelog.Add(LineInput(1))
+            Loop
+            FileClose(1)
+
+            changelogdisplaylist.Clear()
+            Dim changecount As Int32 = scrollstart
+            While changecount < scrollstart + scrollsize
+                Try
+                    changelogdisplaylist.Add(changelog(changecount))
+                Catch ex As Exception
+                    changelogdisplaylist.Add("")
+                End Try
+                changecount = changecount + 1
+            End While
+
+            changelog_text.Text = ""
+
+            Dim temptext As String = ""
+
+            For Each item In changelogdisplaylist
+                Dim tempitem As String = item
+                temptext = temptext + tempitem + Environment.NewLine
+            Next
+            changelog_text.Text = temptext
+        Else
+            btn_changelog.Enabled = False
+        End If
+        System.Windows.Forms.Application.DoEvents()
 
         If hasnetwork Then
             start_tree()
         Else
-            If Not Directory.Exists(My.Application.Info.DirectoryPath + "\IHDir\") Then
-                Text_Display_Gui.Text = "No network connection detected. Client can't install required files to run."
+            If Not System.IO.File.Exists(My.Application.Info.DirectoryPath + "\MinecraftLauncher.exe") Then
+                Text_Display_Gui.Text = "No network connection detected." + Environment.NewLine + " Client can't install required files to run."
             Else
-                Text_Display_Gui.Text = "Current network not established. Switching to previous client version to attempt being able to launch."
+                Text_Display_Gui.Text = "Current network not established." + Environment.NewLine + " Switching to previous client version to attempt being able to launch."
                 btn_Launch.Enabled = True
                 btn_Launch.Text = "LAUNCH OFFLINE"
             End If
         End If
+        System.Windows.Forms.Application.DoEvents()
     End Sub
 
     Private Sub Text_Display_Gui_Click(sender As Object, e As EventArgs) Handles Text_Display_Gui.Click
@@ -38,6 +161,7 @@ Public Class Form1
     Function start_tree() As Task
         Dim needupdate As Boolean
         needupdate = False
+        Dim totalfiles As Int32 = 0
 
         Dim textfile As String = My.Application.Info.DirectoryPath + "\Filelist.txt"
 
@@ -63,7 +187,7 @@ Public Class Form1
 
         'download the remote blacklists
 
-        Dim remoteUri As String = "https://f004.backblazeb2.com/file/InfiniteHorizons/fileblacklist.txt"
+        Dim remoteUri As String = "https://download.adeamore.com/fileblacklist.txt"
         Dim fileName As String = "fileblacklist.txt"
         Dim password As String = "..."
         Dim username As String = "..."
@@ -73,7 +197,7 @@ Public Class Form1
             client.DownloadFile(remoteUri, fileName)
         End Using
 
-        remoteUri = "https://f004.backblazeb2.com/file/InfiniteHorizons/folderblacklist.txt"
+        remoteUri = "https://download.adeamore.com/folderblacklist.txt"
         fileName = "folderblacklist.txt"
 
         Using client As New WebClient()
@@ -83,7 +207,7 @@ Public Class Form1
 
         'generate the working directory
 
-        Dim localfilepath As String = My.Application.Info.DirectoryPath + "\IHDir\"
+        Dim localfilepath As String = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\"
 
         If Not Directory.Exists(localfilepath) Then
             Firstinstall = True
@@ -91,24 +215,24 @@ Public Class Form1
         End If
 
         'run loopfiles to generate the local file list
-        Loop_Files(localfilepath, localfilepath, textfile)
+        totalfiles = Loop_Files(localfilepath, localfilepath, textfile, totalfiles)
 
         'DELETE ME ------------------------------------------------------------------------
-        Process.Start(My.Application.Info.DirectoryPath)
+        'Process.Start(My.Application.Info.DirectoryPath)
         'DELETE ME ------------------------------------------------------------------------
 
         Dim percentage As Int16
         percentage = 0
 
-        Text_Display_Gui.Text = "Compiling File List for Version Pairity Check" + Environment.NewLine + "File List compiled, Comparing Versions. " + percentage.ToString() + "%"
+        Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine + "File List compiled, Comparing Versions. " + percentage.ToString() + "%"
 
         'compare the local list version to the remote version and download remote files
-        Compare_Versions()
+        Compare_Versions(totalfiles)
 
         btn_Launch.Enabled = 1
     End Function
 
-    Function Loop_Files(vardirectory As String, masterdirectory As String, textfile As String) As Task
+    Function Loop_Files(vardirectory As String, masterdirectory As String, textfile As String, totalfiles As Int32) As Int32
 
         'store the blacklists into arrays to compare later
 
@@ -139,7 +263,7 @@ Public Class Form1
 
             If pass Then
                 'if they're not blacklisted, recurse back into the function and go again.
-                Loop_Files(foldername, masterdirectory, textfile)
+                totalfiles = Loop_Files(foldername, masterdirectory, textfile, totalfiles)
             End If
         Next
 
@@ -166,6 +290,20 @@ Public Class Form1
 
                 'record to file
                 streamwriterfile.WriteLine(recordstring)
+
+                'record hash to file on next line
+                Dim s As New SHA256Managed
+                Dim fileBytes() As Byte = IO.File.ReadAllBytes(vardirectory + "\" + StrFile)
+                Dim hash() As Byte = s.ComputeHash(fileBytes)
+
+                Dim calculatedHash As String = ByteArrayToString(hash)
+                streamwriterfile.WriteLine(calculatedHash)
+
+                totalfiles = totalfiles + 1
+
+                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString
+                System.Windows.Forms.Application.DoEvents()
+
             End If
 
             StrFile = Dir()
@@ -173,10 +311,20 @@ Public Class Form1
 
         streamwriterfile.Close()
 
+        Return totalfiles
+
+    End Function
+
+    Function ByteArrayToString(ByVal arrInput() As Byte) As String
+        Dim sb As New System.Text.StringBuilder(arrInput.Length * 2)
+        For i As Integer = 0 To arrInput.Length - 1
+            sb.Append(arrInput(i).ToString("X2"))
+        Next
+        Return sb.ToString().ToLower
     End Function
 
 
-    Function Compare_Versions() As Task
+    Function Compare_Versions(totalfiles As Int32) As Task
 
         Dim textfile As String = My.Application.Info.DirectoryPath + "\onlinelist.txt"
         Try
@@ -186,7 +334,7 @@ Public Class Form1
         End Try
 
         ' Download online version of file
-        Dim remoteUri As String = "https://f004.backblazeb2.com/file/InfiniteHorizons/Filelist.txt"
+        Dim remoteUri As String = "https://download.adeamore.com/Filelist.txt"
         Dim fileName As String = "onlinelist.txt"
         Dim password As String = "..."
         Dim username As String = "..."
@@ -200,19 +348,36 @@ Public Class Form1
         Dim localtext As String = My.Application.Info.DirectoryPath + "\Filelist.txt"
         Dim remotetext As String = My.Application.Info.DirectoryPath + "\onlinelist.txt"
         Dim localarray As New ArrayList
+        Dim localhash As New ArrayList
         Dim remotearray As New ArrayList
+        Dim remotehash As New ArrayList
         Dim getarray As New ArrayList
         Dim deletearray As New ArrayList
 
+        Dim intcount As Int16 = 0
         FileOpen(1, localtext, OpenMode.Input)
         Do While Not EOF(1)
-            localarray.Add(LineInput(1))
+            If (intcount Mod 2 = 1) Then
+                localhash.Add(LineInput(1))
+            Else
+                localarray.Add(LineInput(1))
+            End If
+
+            intcount = intcount + 1
         Loop
+
         FileClose(1)
 
+        intcount = 0
         FileOpen(1, remotetext, OpenMode.Input)
         Do While Not EOF(1)
-            remotearray.Add(LineInput(1))
+            If (intcount Mod 2 = 1) Then
+                remotehash.Add(LineInput(1))
+            Else
+                remotearray.Add(LineInput(1))
+            End If
+
+            intcount = intcount + 1
         Loop
         FileClose(1)
 
@@ -220,7 +385,9 @@ Public Class Form1
         counter = 0
 
         Dim total As Int16
-        total = localarray.Count + remotearray.Count
+        total = localarray.Count + remotearray.Count + localarray.Count
+
+        'loop through local files to see if something doesnt exist in the remote array. if something doesnt exist mark it for deletion.
 
         For Each Item In localarray
             If Not remotearray.Contains(Item) Then
@@ -228,10 +395,12 @@ Public Class Form1
             End If
             counter = counter + 1
             If counter Mod 5 = 0 Then
-                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check" + Environment.NewLine + "File List compiled, Comparing Versions. " + (Math.Round(counter / total * 100)).ToString() + "%"
+                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine + "File List compiled, Comparing Versions. " + (Math.Round(counter / total * 100)).ToString() + "%"
                 System.Windows.Forms.Application.DoEvents()
             End If
         Next
+
+        'loop through remote files to see if something doesnt exist in the local array. if it doesnt exist mark it to be gotten.
 
         For Each Item In remotearray
             If Not localarray.Contains(Item) Then
@@ -239,7 +408,31 @@ Public Class Form1
             End If
             counter = counter + 1
             If counter Mod 5 = 0 Then
-                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check" + Environment.NewLine + "File List compiled, Comparing Versions. " + (Math.Round(counter / total * 100)).ToString() + "%"
+                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine + "File List compiled, Comparing Versions. " + (Math.Round(counter / total * 100)).ToString() + "%"
+                System.Windows.Forms.Application.DoEvents()
+            End If
+        Next
+
+        'loop through local files, compare hashes relevant to local files to remote hashes, if they dont match mark for both deletion and getting
+        Dim inttracker As Int16 = 0
+        For Each item In localarray
+            If Not item.ToString.Contains("launcher_profiles.json") Then
+                If remotearray.Contains(item) Then 'check to make sure both lists have the same file name in them
+                    Dim remotevalue As Int16 = remotearray.LastIndexOf(item) 'get the index of the file name from the remote array
+                    Dim hash1 As String = localhash.Item(inttracker) 'get the hash from both files
+                    Dim hash2 As String = remotehash.Item(remotevalue)
+
+                    If Not hash1 = hash2 Then 'if they're not equal, delete and replace them
+                        deletearray.Add(item)
+                        getarray.Add(item)
+                    End If
+                End If
+            End If
+
+            counter = counter + 1
+            inttracker = inttracker + 1
+            If counter Mod 5 = 0 Then
+                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine + "File List compiled, Comparing Versions. " + (Math.Round(counter / total * 100)).ToString() + "%"
                 System.Windows.Forms.Application.DoEvents()
             End If
         Next
@@ -249,7 +442,8 @@ Public Class Form1
         counter = 0
         total = deletearray.Count + getarray.Count
 
-        Dim localdirectory As String = My.Application.Info.DirectoryPath + "\IHDir\"
+        'delete files marked for deletion
+        Dim localdirectory As String = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\"
         For Each Item In deletearray
             Dim deletefile As String = Item.ToString
 
@@ -258,19 +452,24 @@ Public Class Form1
             If deletefile.First() = "\" Then
                 deletefile = deletefile.Replace("\", "")
             End If
-            File.Delete(localdirectory + Item)
+            System.IO.File.Delete(localdirectory + Item)
+
+            Console.WriteLine("deleting: " + Item)
 
             counter = counter + 1
 
             If counter Mod 5 = 0 Then
 
-                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check" + Environment.NewLine +
+                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine +
                     "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
-                    "Files Updating. "(Math.Round(counter / total * 100)).ToString() + "%"
+                    "Files Updating. " + (Math.Round(counter / total * 100)).ToString() + "%"
 
                 System.Windows.Forms.Application.DoEvents()
             End If
         Next
+
+        'get files marked to get
+
         For Each Item In getarray
 
             Dim getfile As String = Item
@@ -290,19 +489,19 @@ Public Class Form1
             Dim lastslash As Int32 = 0
             Dim count As Int32 = 0
 
-            For Each c As Char In fileName
+            For Each c As Char In getfile
                 If c = "\" Then
                     lastslash = count
                 End If
                 count = count + 1
             Next
 
-            pathtrack = fileName.Substring(0, lastslash)
+            pathtrack = getfile.Substring(0, lastslash)
 
             'create the directory for it
 
             Try
-                My.Computer.FileSystem.CreateDirectory(pathtrack)
+                My.Computer.FileSystem.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\" + pathtrack)
             Catch ex As Exception
 
             End Try
@@ -311,11 +510,15 @@ Public Class Form1
 
             Dim fileurl As String = getfile.Replace("\", "/")
 
-            fileurl = fileurl.Substring(0, lastslash) + WebUtility.UrlEncode(fileurl.Substring(lastslash + 1, fileurl.Length))
+            Dim firsthalf As String = fileurl.Substring(0, lastslash + 1)
+            Dim secondhalf As String = fileurl.Substring(lastslash + 1, fileurl.Length - (lastslash + 1))
+            secondhalf = WebUtility.UrlEncode(secondhalf)
+
+            fileurl = firsthalf + secondhalf
 
             'append the new url snippet to the backblaze url
 
-            remoteUri = "https://f004.backblazeb2.com/file/InfiniteHorizons/IHDir/" + fileurl
+            remoteUri = "https://download.adeamore.com/IHDir/" + fileurl
             fileName = localdirectory + getfile
 
             'download the file as temp.tmp, and then move it to the folder it needs to be in
@@ -328,34 +531,85 @@ Public Class Form1
             My.Computer.FileSystem.CopyFile(My.Application.Info.DirectoryPath + "\Temp.tmp", fileName)
             My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\Temp.tmp")
 
+            Console.WriteLine("Downloaded: " + getfile)
+
             counter = counter + 1
 
             'incrementally update the percentage complete value
 
-            If counter Mod 5 = 0 Then
 
-                If Firstinstall Then
-                    Text_Display_Gui.Text = "Compiling File List for Version Pairity Check" + Environment.NewLine +
-                        "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
-                        "Downloading pack for the first time: " + (Math.Round(counter / total * 100)).ToString() + "%"
+            If Firstinstall Then
+                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine +
+                    "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
+                    "Downloading pack for the first time: " + (Math.Round(counter / total * 100)).ToString() + "% " + Environment.NewLine + getfile
 
-                    System.Windows.Forms.Application.DoEvents()
-                Else
-                    Text_Display_Gui.Text = "Compiling File List for Version Pairity Check" + Environment.NewLine +
-                        "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
-                        "Files Updating. " + (Math.Round(counter / total * 100)).ToString() + "%"
+                System.Windows.Forms.Application.DoEvents()
+            Else
+                Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine +
+                    "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
+                    "Files Updating. " + (Math.Round(counter / total * 100)).ToString() + "% " + Environment.NewLine + getfile
 
-                    System.Windows.Forms.Application.DoEvents()
-                End If
-
+                System.Windows.Forms.Application.DoEvents()
             End If
+
         Next
+
+        If Firstinstall Then
+            Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine +
+                            "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
+                            "Downloading pack for the first time: 100%" + Environment.NewLine +
+                            "Downloading Minecraft Launcher."
+
+            System.Windows.Forms.Application.DoEvents()
+
+            remoteUri = "https://download.adeamore.com/MinecraftLauncher.exe"
+            fileName = "\MinecraftLauncher.exe"
+
+            'download the file as temp.tmp, and then move it to the folder it needs to be in
+
+            Using client As New WebClient()
+                client.Credentials = New NetworkCredential(username, password)
+                client.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
+            End Using
+
+
+            Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine +
+                            "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
+                            "Downloading pack for the first time: 100%" + Environment.NewLine +
+                            "Downloading Minecraft Launcher." + Environment.NewLine +
+                            "Done!"
+
+            System.Windows.Forms.Application.DoEvents()
+        Else
+            Text_Display_Gui.Text = "Compiling File List for Version Pairity Check: File Count: " + totalfiles.ToString + Environment.NewLine +
+                "File List compiled, Comparing Versions. 100%" + Environment.NewLine +
+                "Files Updating. 100%" + Environment.NewLine +
+                "Done!"
+
+            System.Windows.Forms.Application.DoEvents()
+
+        End If
+
     End Function
     Function CheckForInternetConnection() As Boolean
         Try
             Using client = New WebClient()
-                Using stream = client.OpenRead("http://www.google.com")
-                    Return True
+                Using stream = client.OpenRead("http://www.google.com") 'check to see if you can connect to google
+                    Dim remoteUri As String = "https://download.adeamore.com/changelog.txt" 'try downloading the changelog as an attempt to check network connection to the filehost
+                    Dim fileName As String = "\changelog.txt"
+                    Dim password As String = "..."
+                    Dim username As String = "..."
+
+                    Try
+                        Using networkthing As New WebClient()
+                            networkthing.Credentials = New NetworkCredential(username, password)
+                            networkthing.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
+                        End Using
+                        Return True
+                    Catch ex As WebException
+                        Return False
+                    End Try
+
                 End Using
             End Using
         Catch
@@ -363,5 +617,86 @@ Public Class Form1
         End Try
     End Function
 
+    Private Async Sub btn_credits_Click(sender As Object, e As EventArgs) Handles btn_credits.Click
+        System.Diagnostics.Process.Start("https://docs.google.com/document/d/12__s3huWbCrtpk6Lvnd4MQ8OMquiTw7dJfRVeN64dL4/edit?usp=sharing")
+    End Sub
 
+    Private Async Sub btn_changelog_Click(sender As Object, e As EventArgs) Handles btn_changelog.Click
+        If changelog_text.Visible Then
+            changelog_text.Visible = False
+            changelog_bbox.Visible = False
+        Else
+            changelog_text.Visible = True
+            changelog_bbox.Visible = True
+        End If
+    End Sub
+
+    Private Async Sub Label1_Scroll(sender As Object, e As System.Windows.Forms.MouseEventArgs) Handles Me.MouseWheel
+        If changelog_text.Visible = True Then
+            If e.Delta > 0 Then
+                'scroll up
+                scrollup()
+            Else
+                'scroll down
+                scrolldown()
+            End If
+        End If
+    End Sub
+
+    Private Async Function scrollup() As Task
+        scrollstart = scrollstart - 2
+        If scrollstart < 0 Then scrollstart = 0
+
+        changelogdisplaylist.Clear()
+        Dim changecount As Int32 = scrollstart
+        While changecount < scrollstart + scrollsize
+            Try
+                changelogdisplaylist.Add(changelog(changecount))
+            Catch ex As Exception
+                changelogdisplaylist.Add("")
+            End Try
+            changecount = changecount + 1
+        End While
+
+        changelog_text.Text = ""
+
+        Dim temptext As String = ""
+
+        For Each item In changelogdisplaylist
+            Dim tempitem As String = item
+            temptext = temptext + tempitem + Environment.NewLine
+        Next
+        changelog_text.Text = temptext
+        System.Windows.Forms.Application.DoEvents()
+
+    End Function
+    Private Async Function scrolldown() As Task
+
+        scrollstart = scrollstart + 2
+
+        If scrollstart + scrollsize > changelog.Count Then scrollstart = changelog.Count - scrollsize
+
+        changelogdisplaylist.Clear()
+        Dim changecount As Int32 = scrollstart
+        While changecount < scrollstart + scrollsize
+            Try
+                changelogdisplaylist.Add(changelog(changecount))
+            Catch ex As Exception
+                changelogdisplaylist.Add("")
+            End Try
+            changecount = changecount + 1
+        End While
+
+        changelog_text.Text = ""
+
+        Dim temptext As String = ""
+
+        For Each item In changelogdisplaylist
+            Dim tempitem As String = item
+            temptext = temptext + tempitem + Environment.NewLine
+        Next
+        changelog_text.Text = temptext
+        System.Windows.Forms.Application.DoEvents()
+
+    End Function
 End Class
