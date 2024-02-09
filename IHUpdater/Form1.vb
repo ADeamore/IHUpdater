@@ -5,9 +5,11 @@ Imports System.IO
 Imports System.Net
 Imports System.Net.WebRequestMethods
 Imports System.Reflection
+Imports System.Runtime.CompilerServices
 Imports System.Security.Cryptography
 Imports System.Threading
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement
+Imports System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel
 Imports Microsoft.VisualBasic.Logging
 
 Public Class Form1
@@ -17,60 +19,59 @@ Public Class Form1
     Dim changelog As New ArrayList
     Dim scrollsize As Int16 = 33
     Dim changelogdisplaylist As New ArrayList
+    Dim showonlaunch As Boolean = False
+    Dim minecraftrunning = False
 
-    Private Sub btn_Launch_Click(sender As Object, e As EventArgs) Handles btn_Launch.Click
+    Private Async Sub btn_Launch_Click(sender As Object, e As EventArgs) Handles btn_Launch.Click
         ' MsgBox("Hello World!")
 
-        Try
-            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", ".MinecraftTemp")
-        Catch ex As Exception
-            MsgBox("Failed to rename .minecraft file. To temporary folder.")
-        End Try
+        minecraftrunning = True
 
-        Try
-            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\", ".Minecraft")
-        Catch ex As Exception
-            MsgBox("Failed to rename IHDir files. To .minecraft")
-        End Try
+        btn_Launch.Enabled = False
 
-        Dim newprocess As New ProcessStartInfo("CMD.EXE")
-        newprocess.WindowStyle = ProcessWindowStyle.Hidden
-        newprocess.CreateNoWindow = True
-        newprocess.UseShellExecute = False
-        newprocess.Arguments = "/c MinecraftLauncher.exe"
+        If showonlaunch = False Then
+            Me.Visible = False
+        End If
 
-        Dim minecraftlauncher = Process.Start(newprocess)
+        Dim tasks As New List(Of Task)()
+        tasks.Add(Task.Run(AddressOf waitforminecraftclose))
 
-        Me.Visible = False
+        Await Task.WhenAll(tasks)
 
-        minecraftlauncher.WaitForExit()
+        minecraftrunning = False
+
+        Me.btn_Launch.Enabled = True
 
         Me.Visible = True
-
-        Try
-            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", "IHDir")
-        Catch ex As Exception
-            MsgBox("Failed to rename .minecraft files. To IHDir")
-        End Try
-
-        Try
-            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.MinecraftTemp\", ".Minecraft")
-        Catch ex As Exception
-            MsgBox("Failed to rename temporary folder to .minecraft folder.")
-        End Try
 
     End Sub
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
     End Sub
     Private Sub doform1() Handles MyBase.Shown
 
-        Me.MinimumSize = Me.Size
-        Me.MaximumSize = Me.MinimumSize
+        Me.MaximumSize = My.Computer.Screen.WorkingArea.Size
 
         lbl_creator_credits.Text = "Modpack Compiled by: " + Environment.NewLine +
             "Kate 'BurgundyPetal' H. and Avaela 'ItAvvy' D." + Environment.NewLine +
             "Launcher Designed by: " + Environment.NewLine +
             "Avaela 'ItAvvy' D."
+
+        'load config for visibility checkbox
+
+        If Not System.IO.File.Exists(My.Application.Info.DirectoryPath + "\keeplauncher.txt") Then
+            Dim streamwriterfile As StreamWriter
+            streamwriterfile = My.Computer.FileSystem.OpenTextFileWriter(My.Application.Info.DirectoryPath + "\keeplauncher.txt", False)
+            streamwriterfile.Write(showonlaunch)
+            streamwriterfile.Close()
+        End If
+
+        FileOpen(1, My.Application.Info.DirectoryPath + "\keeplauncher.txt", OpenMode.Input)
+        Dim showtype As String = LineInput(1)
+        If (showtype.Contains("False")) Then showonlaunch = False
+        If (showtype.Contains("True")) Then showonlaunch = True
+        FileClose(1)
+
+        tickbox_launcherstay.Checked = showonlaunch
 
         System.Windows.Forms.Application.DoEvents()
         'ADD A CATCH TO CHECK TO SEE IF YOU'RE ONLINE. IF YOU'RE NOT, FAIL OUT AND ALLOW FOR LAUNCHING.
@@ -140,8 +141,75 @@ Public Class Form1
         End If
         System.Windows.Forms.Application.DoEvents()
 
+        'start running the actual file check stuff
+
         If hasnetwork Then
+            'download and make sure you dont need to file wipe
+
+            Dim remoteUri As String = "https://download.adeamore.com/versionnumber.txt"
+            Dim fileName As String = "\olversionnumber.txt"
+            Dim password As String = "..."
+            Dim username As String = "..."
+
+            Using client As New WebClient()
+                client.Credentials = New NetworkCredential(username, password)
+                client.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
+            End Using
+
+            Dim localversionnumber As Int16 = 0
+            Dim remoteversionnumber As Int16 = 0
+
+            If System.IO.File.Exists(My.Application.Info.DirectoryPath + "\versionnumber.txt") Then
+
+                FileOpen(1, My.Application.Info.DirectoryPath + "\olversionnumber.txt", OpenMode.Input)
+                remoteversionnumber = Convert.ToInt32(LineInput(1))
+                FileClose(1)
+
+                FileOpen(1, My.Application.Info.DirectoryPath + "\versionnumber.txt", OpenMode.Input)
+                localversionnumber = Convert.ToInt32(LineInput(1))
+                FileClose(1)
+
+                If Not (localversionnumber = remoteversionnumber) Then
+                    Text_Display_Gui.Text = "Got notice of need for a complete fresh install." + Environment.NewLine +
+                        "Deleting previous folder. If the application" + Environment.NewLine +
+                        "stalls out please ignore until it fixes itself."
+                    System.Windows.Forms.Application.DoEvents()
+                    Try
+                        System.IO.Directory.Delete(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\", True)
+                    Catch ex As Exception
+
+                    End Try
+                End If
+
+                Try
+                    My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\olversionnumber.txt")
+                Catch ex As Exception
+
+                End Try
+            Else
+                FileOpen(1, My.Application.Info.DirectoryPath + "\olversionnumber.txt", OpenMode.Input)
+                remoteversionnumber = Convert.ToInt32(LineInput(1))
+                FileClose(1)
+            End If
+
+            'run version check and file pairity stuff
             start_tree()
+
+            'clean up from handling version checks
+            If Not localversionnumber = remoteversionnumber Then
+                Try
+                    My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\versionnumber.txt")
+                Catch ex As Exception
+
+                End Try
+
+                Dim streamwriterfile As StreamWriter
+                streamwriterfile = My.Computer.FileSystem.OpenTextFileWriter(My.Application.Info.DirectoryPath + "\versionnumber.txt", True)
+                streamwriterfile.WriteLine(ToString(remoteversionnumber))
+                streamwriterfile.Close()
+            End If
+
+
         Else
             If Not System.IO.File.Exists(My.Application.Info.DirectoryPath + "\MinecraftLauncher.exe") Then
                 Text_Display_Gui.Text = "No network connection detected." + Environment.NewLine + " Client can't install required files to run."
@@ -205,13 +273,24 @@ Public Class Form1
             client.DownloadFile(remoteUri, fileName)
         End Using
 
+        remoteUri = "https://download.adeamore.com/filegreylist.txt"
+        fileName = "filegreylist.txt"
+
+        Using client As New WebClient()
+            client.Credentials = New NetworkCredential(username, password)
+            client.DownloadFile(remoteUri, fileName)
+        End Using
+
         'generate the working directory
 
         Dim localfilepath As String = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\"
 
         If Not Directory.Exists(localfilepath) Then
-            Firstinstall = True
             Directory.CreateDirectory(localfilepath)
+        End If
+
+        If Not System.IO.File.Exists(My.Application.Info.DirectoryPath + "\MinecraftLauncher.exe") Then
+            Firstinstall = True
         End If
 
         'run loopfiles to generate the local file list
@@ -247,6 +326,13 @@ Public Class Form1
         FileOpen(1, My.Application.Info.DirectoryPath + "\fileblacklist.txt", OpenMode.Input)
         Do While Not EOF(1)
             fileblacklist.Add(LineInput(1))
+        Loop
+        FileClose(1)
+
+        Dim filegreylist As New ArrayList
+        FileOpen(1, My.Application.Info.DirectoryPath + "\filegreylist.txt", OpenMode.Input)
+        Do While Not EOF(1)
+            filegreylist.Add(LineInput(1))
         Loop
         FileClose(1)
 
@@ -326,6 +412,14 @@ Public Class Form1
 
     Function Compare_Versions(totalfiles As Int32) As Task
 
+        'load the greylist in again
+        Dim filegreylist As New ArrayList
+        FileOpen(1, My.Application.Info.DirectoryPath + "\filegreylist.txt", OpenMode.Input)
+        Do While Not EOF(1)
+            filegreylist.Add(LineInput(1))
+        Loop
+        FileClose(1)
+
         Dim textfile As String = My.Application.Info.DirectoryPath + "\onlinelist.txt"
         Try
             My.Computer.FileSystem.DeleteFile(textfile)
@@ -344,7 +438,7 @@ Public Class Form1
             client.DownloadFile(remoteUri, fileName)
         End Using
 
-        ' Compare files (ignore whitelisted files (TODO: make whitelist)) (trust that they wont both be in the same order)
+        ' Compare files
         Dim localtext As String = My.Application.Info.DirectoryPath + "\Filelist.txt"
         Dim remotetext As String = My.Application.Info.DirectoryPath + "\onlinelist.txt"
         Dim localarray As New ArrayList
@@ -416,7 +510,18 @@ Public Class Form1
         'loop through local files, compare hashes relevant to local files to remote hashes, if they dont match mark for both deletion and getting
         Dim inttracker As Int16 = 0
         For Each item In localarray
-            If Not item.ToString.Contains("launcher_profiles.json") Then
+            Dim pass As Boolean = True
+
+            'verify the file isnt in the greylist
+            If Firstinstall = False Then
+                For Each greyitem In filegreylist
+                    If item.ToString.Contains(greyitem.ToString) Then
+                        pass = False
+                    End If
+                Next
+            End If
+
+            If pass Then
                 If remotearray.Contains(item) Then 'check to make sure both lists have the same file name in them
                     Dim remotevalue As Int16 = remotearray.LastIndexOf(item) 'get the index of the file name from the remote array
                     Dim hash1 As String = localhash.Item(inttracker) 'get the hash from both files
@@ -528,6 +633,10 @@ Public Class Form1
                 client.DownloadFile(remoteUri, "temp.tmp")
             End Using
 
+            If My.Computer.FileSystem.FileExists(fileName) Then
+                My.Computer.FileSystem.DeleteFile(fileName)
+            End If
+
             My.Computer.FileSystem.CopyFile(My.Application.Info.DirectoryPath + "\Temp.tmp", fileName)
             My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\Temp.tmp")
 
@@ -595,8 +704,8 @@ Public Class Form1
         Try
             Using client = New WebClient()
                 Using stream = client.OpenRead("http://www.google.com") 'check to see if you can connect to google
-                    Dim remoteUri As String = "https://download.adeamore.com/changelog.txt" 'try downloading the changelog as an attempt to check network connection to the filehost
-                    Dim fileName As String = "\changelog.txt"
+                    Dim remoteUri As String = "https://download.adeamore.com/delete_this_file_to_force_offline_mode.txt" 'try downloading the changelog as an attempt to check network connection to the filehost
+                    Dim fileName As String = "\temp.tmp"
                     Dim password As String = "..."
                     Dim username As String = "..."
 
@@ -605,6 +714,9 @@ Public Class Form1
                             networkthing.Credentials = New NetworkCredential(username, password)
                             networkthing.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
                         End Using
+
+                        System.IO.File.Delete(My.Application.Info.DirectoryPath + fileName)
+
                         Return True
                     Catch ex As WebException
                         Return False
@@ -699,4 +811,71 @@ Public Class Form1
         System.Windows.Forms.Application.DoEvents()
 
     End Function
+
+    Private Sub changelog_text_Click(sender As Object, e As EventArgs) Handles changelog_text.Click
+
+    End Sub
+
+    Private Sub tickbox_launcherstay_CheckedChanged(sender As Object, e As EventArgs) Handles tickbox_launcherstay.CheckedChanged
+
+        showonlaunch = tickbox_launcherstay.Checked
+
+        System.IO.File.Delete(My.Application.Info.DirectoryPath + "\keeplauncher.txt")
+
+        Dim streamwriterfile As StreamWriter
+        streamwriterfile = My.Computer.FileSystem.OpenTextFileWriter(My.Application.Info.DirectoryPath + "\keeplauncher.txt", showonlaunch)
+        streamwriterfile.Write(showonlaunch)
+        streamwriterfile.Close()
+    End Sub
+
+    Private Async Function waitforminecraftclose() As Task
+
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", ".MinecraftTemp")
+        Catch ex As Exception
+            MsgBox("Failed to rename .minecraft file. To temporary folder.")
+        End Try
+
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\", ".Minecraft")
+        Catch ex As Exception
+            MsgBox("Failed to rename IHDir files. To .minecraft")
+        End Try
+
+        Dim newprocess As New ProcessStartInfo("CMD.EXE")
+        newprocess.WindowStyle = ProcessWindowStyle.Hidden
+        newprocess.CreateNoWindow = True
+        newprocess.UseShellExecute = False
+        newprocess.Arguments = "/c MinecraftLauncher.exe"
+
+        Dim minecraftlauncher = New Process
+        minecraftlauncher.StartInfo = newprocess
+        minecraftlauncher.Start()
+
+        minecraftlauncher.WaitForExit()
+
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", "IHDir")
+        Catch ex As Exception
+            MsgBox("Failed to rename .minecraft files. To IHDir")
+        End Try
+
+        Try
+            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.MinecraftTemp\", ".Minecraft")
+        Catch ex As Exception
+            MsgBox("Failed to rename temporary folder to .minecraft folder.")
+        End Try
+
+    End Function
+
+    Private Sub form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
+
+        If minecraftrunning = True Then
+            e.Cancel = True
+            Me.Hide()
+        End If
+
+    End Sub
+
+
 End Class

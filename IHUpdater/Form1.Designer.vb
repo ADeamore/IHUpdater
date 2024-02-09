@@ -30,11 +30,14 @@ Partial Class Form1
         Me.lbl_creator_credits = New System.Windows.Forms.Label()
         Me.changelog_text = New System.Windows.Forms.Label()
         Me.changelog_bbox = New System.Windows.Forms.PictureBox()
+        Me.tickbox_launcherstay = New System.Windows.Forms.CheckBox()
         CType(Me.changelog_bbox, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SuspendLayout()
         '
         'btn_Launch
         '
+        Me.btn_Launch.Anchor = CType((System.Windows.Forms.AnchorStyles.Bottom Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.btn_Launch.AutoSize = True
         Me.btn_Launch.BackColor = System.Drawing.SystemColors.ScrollBar
         Me.btn_Launch.Enabled = False
         Me.btn_Launch.FlatStyle = System.Windows.Forms.FlatStyle.System
@@ -57,6 +60,7 @@ Partial Class Form1
         '
         'btn_credits
         '
+        Me.btn_credits.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.btn_credits.FlatStyle = System.Windows.Forms.FlatStyle.System
         Me.btn_credits.Location = New System.Drawing.Point(660, 12)
         Me.btn_credits.Name = "btn_credits"
@@ -67,6 +71,7 @@ Partial Class Form1
         '
         'btn_changelog
         '
+        Me.btn_changelog.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.btn_changelog.FlatStyle = System.Windows.Forms.FlatStyle.System
         Me.btn_changelog.Location = New System.Drawing.Point(660, 50)
         Me.btn_changelog.Name = "btn_changelog"
@@ -77,6 +82,7 @@ Partial Class Form1
         '
         'lbl_creator_credits
         '
+        Me.lbl_creator_credits.Anchor = CType((System.Windows.Forms.AnchorStyles.Bottom Or System.Windows.Forms.AnchorStyles.Left), System.Windows.Forms.AnchorStyles)
         Me.lbl_creator_credits.AutoSize = True
         Me.lbl_creator_credits.BackColor = System.Drawing.SystemColors.ScrollBar
         Me.lbl_creator_credits.Location = New System.Drawing.Point(12, 390)
@@ -87,6 +93,7 @@ Partial Class Form1
         '
         'changelog_text
         '
+        Me.changelog_text.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.changelog_text.AutoSize = True
         Me.changelog_text.Location = New System.Drawing.Point(340, 9)
         Me.changelog_text.Name = "changelog_text"
@@ -97,6 +104,7 @@ Partial Class Form1
         '
         'changelog_bbox
         '
+        Me.changelog_bbox.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.changelog_bbox.Location = New System.Drawing.Point(340, 9)
         Me.changelog_bbox.Name = "changelog_bbox"
         Me.changelog_bbox.Size = New System.Drawing.Size(296, 429)
@@ -104,15 +112,26 @@ Partial Class Form1
         Me.changelog_bbox.TabStop = False
         Me.changelog_bbox.Visible = False
         '
+        'tickbox_launcherstay
+        '
+        Me.tickbox_launcherstay.Anchor = CType((System.Windows.Forms.AnchorStyles.Bottom Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.tickbox_launcherstay.AutoSize = True
+        Me.tickbox_launcherstay.Location = New System.Drawing.Point(643, 358)
+        Me.tickbox_launcherstay.Name = "tickbox_launcherstay"
+        Me.tickbox_launcherstay.Size = New System.Drawing.Size(128, 17)
+        Me.tickbox_launcherstay.TabIndex = 10
+        Me.tickbox_launcherstay.Text = "Keep Launcher Open"
+        Me.tickbox_launcherstay.UseVisualStyleBackColor = True
+        '
         'Form1
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.AutoSize = True
         Me.BackColor = System.Drawing.SystemColors.ScrollBar
-        Me.BackgroundImage = Global.IHUpdater.My.Resources.Resources.Launcher_Background
+        Me.BackgroundImage = Global.IHUpdater.My.Resources.Resources.Launcher_Background_2
         Me.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch
         Me.ClientSize = New System.Drawing.Size(800, 450)
+        Me.Controls.Add(Me.tickbox_launcherstay)
         Me.Controls.Add(Me.changelog_text)
         Me.Controls.Add(Me.btn_changelog)
         Me.Controls.Add(Me.btn_Launch)
@@ -120,8 +139,9 @@ Partial Class Form1
         Me.Controls.Add(Me.btn_credits)
         Me.Controls.Add(Me.Text_Display_Gui)
         Me.Controls.Add(Me.changelog_bbox)
+        Me.DoubleBuffered = True
         Me.Icon = CType(resources.GetObject("$this.Icon"), System.Drawing.Icon)
-        Me.MaximizeBox = False
+        Me.MinimumSize = New System.Drawing.Size(816, 489)
         Me.Name = "Form1"
         Me.Text = "IHUpdater V.0.5.0"
         CType(Me.changelog_bbox, System.ComponentModel.ISupportInitialize).EndInit()
@@ -137,4 +157,5 @@ Partial Class Form1
     Friend WithEvents lbl_creator_credits As Label
     Friend WithEvents changelog_text As Label
     Friend WithEvents changelog_bbox As PictureBox
+    Friend WithEvents tickbox_launcherstay As CheckBox
 End Class
