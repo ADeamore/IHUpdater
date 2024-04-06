@@ -7,10 +7,13 @@ Imports System.Net.WebRequestMethods
 Imports System.Reflection
 Imports System.Runtime.CompilerServices
 Imports System.Security.Cryptography
+Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel
 Imports Microsoft.VisualBasic.Logging
+Imports Microsoft.Web.WebView2.Core
+Imports Microsoft.Web.WebView2.WinForms
 
 Public Class Form1
 
@@ -21,12 +24,19 @@ Public Class Form1
     Dim changelogdisplaylist As New ArrayList
     Dim showonlaunch As Boolean = False
     Dim minecraftrunning = False
+    Dim version As Int32 = 1
+    Dim worldmapvisible As Boolean = 0
+    Dim canlaunch As Boolean = 0
+    Dim mapdimension As String = "InfiniteHorizonWorld"
+    Dim hasminecraftfolder As Boolean = My.Computer.FileSystem.DirectoryExists(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\")
+    Dim hastempminecraftfolder As Boolean = My.Computer.FileSystem.DirectoryExists(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.MinecraftTemp\")
 
     Private Async Sub btn_Launch_Click(sender As Object, e As EventArgs) Handles btn_Launch.Click
         ' MsgBox("Hello World!")
 
         minecraftrunning = True
 
+        canlaunch = 0
         btn_Launch.Enabled = False
 
         If showonlaunch = False Then
@@ -40,14 +50,27 @@ Public Class Form1
 
         minecraftrunning = False
 
-        Me.btn_Launch.Enabled = True
+        canlaunch = 1
+        If Not worldmapvisible = 1 Then
+            Me.btn_Launch.Enabled = True
+        End If
 
         Me.Visible = True
 
     End Sub
-    Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+    Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        'move the browser off the screen
+        dynmap_browser.Location = New Point(Me.Width, 0)
+
+        'set up the browser to run
+        'set its url to the default
+        Dim environment As CoreWebView2Environment
+        Await dynmap_browser.EnsureCoreWebView2Async(environment)
+        dynmap_browser.Source = New Uri("http://infinitehorizons.apexmc.co:8123/?worldname=InfiniteHorizonsWorld&mapname=flat")
+
     End Sub
     Private Sub doform1() Handles MyBase.Shown
+
 
         Me.MaximumSize = My.Computer.Screen.WorkingArea.Size
 
@@ -76,14 +99,108 @@ Public Class Form1
         System.Windows.Forms.Application.DoEvents()
         'ADD A CATCH TO CHECK TO SEE IF YOU'RE ONLINE. IF YOU'RE NOT, FAIL OUT AND ALLOW FOR LAUNCHING.
 
-
-        'DELETE ME -----------------------------
-        'hasnetwork = False
-        'DELETE ME -----------------------------
-
         Dim hasnetwork = CheckForInternetConnection()
 
+        'DELETE ME -----------------------------
+        hasnetwork = False
+        'DELETE ME -----------------------------
+
         If hasnetwork Then
+
+            'check to see if it needs to unfuck files
+            If hastempminecraftfolder = 1 Then
+                Text_Display_Gui.Text = "Fixing files from previous launch..."
+                System.Windows.Forms.Application.DoEvents()
+
+                Dim works As Boolean = 0
+                If hasminecraftfolder Then
+                    Try
+                        My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", "IHDir")
+                        works = 1
+                    Catch ex As Exception
+                        works = 0
+                    End Try
+                    If works = 1 Then
+                        hasminecraftfolder = 1
+                    End If
+                End If
+
+                Try
+                    My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.MinecraftTemp\", ".Minecraft")
+                Catch ex As Exception
+                End Try
+            End If
+
+
+            'Check to see if the launcher needs an update
+            Text_Display_Gui.Text = "Checking to see if the launcher needs an update:"
+            System.Windows.Forms.Application.DoEvents()
+
+            Try
+                My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\IHFileSwap.exe")
+            Catch ex As Exception
+
+            End Try
+
+            Try
+                My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\remotelauncherversion.txt")
+            Catch ex As Exception
+
+            End Try
+
+            Dim remoteUri As String = "https://download.adeamore.com/remotelauncherversion.txt"
+            Dim fileName As String = "\remotelauncherversion.txt"
+            Dim password As String = "..."
+            Dim username As String = "..."
+
+            Using client As New WebClient()
+                client.Credentials = New NetworkCredential(username, password)
+                client.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
+            End Using
+
+            Dim ollauncherver As Int32 = 0
+
+            FileOpen(1, My.Application.Info.DirectoryPath + "\remotelauncherversion.txt", OpenMode.Input)
+            ollauncherver = Convert.ToInt32(LineInput(1))
+            FileClose(1)
+
+            Try
+                My.Computer.FileSystem.DeleteFile(My.Application.Info.DirectoryPath + "\remotelauncherversion.txt")
+            Catch ex As Exception
+
+            End Try
+
+            If Not version = ollauncherver Then
+                'download new launcher here
+
+                remoteUri = "https://download.adeamore.com/IHFileSwap.exe"
+                fileName = "\IHFileSwap.exe"
+
+                Using client As New WebClient()
+                    client.Credentials = New NetworkCredential(username, password)
+                    client.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
+                End Using
+
+                remoteUri = "https://download.adeamore.com/IHUpdater.exe"
+                fileName = "\IHUpdatertemp.exe"
+
+                Using client As New WebClient()
+                    client.Credentials = New NetworkCredential(username, password)
+                    client.DownloadFile(remoteUri, My.Application.Info.DirectoryPath + fileName)
+                End Using
+
+                Process.Start(My.Application.Info.DirectoryPath + "\IHFileSwap.exe")
+
+                hasnetwork = False
+
+                Me.Close()
+
+            End If
+
+
+        End If
+
+        If hasnetwork Then 'download changelog
 
             Text_Display_Gui.Text = "Compiling File List for Version Pairity Check:"
             System.Windows.Forms.Application.DoEvents()
@@ -109,7 +226,7 @@ Public Class Form1
         'set up changelog arraylist
 
 
-        If My.Computer.FileSystem.FileExists(My.Application.Info.DirectoryPath + "\changelog.txt") Then
+        If My.Computer.FileSystem.FileExists(My.Application.Info.DirectoryPath + "\changelog.txt") Then 'setup changelog
             FileOpen(1, My.Application.Info.DirectoryPath + "\changelog.txt", OpenMode.Input)
             Do While Not EOF(1)
                 Me.changelog.Add(LineInput(1))
@@ -209,13 +326,43 @@ Public Class Form1
                 streamwriterfile.Close()
             End If
 
+            'clean up local files
+            Try
+                System.IO.File.Delete(My.Application.Info.DirectoryPath + "fileblacklist.txt")
+            Catch ex As Exception
+
+            End Try
+            Try
+                System.IO.File.Delete(My.Application.Info.DirectoryPath + "folderblacklist.txt")
+            Catch ex As Exception
+
+            End Try
+            Try
+                System.IO.File.Delete(My.Application.Info.DirectoryPath + "filegreylist.txt")
+            Catch ex As Exception
+
+            End Try
+            Try
+                System.IO.File.Delete(My.Application.Info.DirectoryPath + "filelist.txt")
+            Catch ex As Exception
+
+            End Try
+            Try
+                System.IO.File.Delete(My.Application.Info.DirectoryPath + "onlinelist.txt")
+            Catch ex As Exception
+
+            End Try
+
 
         Else
             If Not System.IO.File.Exists(My.Application.Info.DirectoryPath + "\MinecraftLauncher.exe") Then
                 Text_Display_Gui.Text = "No network connection detected." + Environment.NewLine + " Client can't install required files to run."
             Else
                 Text_Display_Gui.Text = "Current network not established." + Environment.NewLine + " Switching to previous client version to attempt being able to launch."
-                btn_Launch.Enabled = True
+                canlaunch = 1
+                If Not worldmapvisible = True Then
+                    btn_Launch.Enabled = True
+                End If
                 btn_Launch.Text = "LAUNCH OFFLINE"
             End If
         End If
@@ -308,7 +455,10 @@ Public Class Form1
         'compare the local list version to the remote version and download remote files
         Compare_Versions(totalfiles)
 
-        btn_Launch.Enabled = 1
+        canlaunch = 1
+        If Not worldmapvisible = True Then
+            btn_Launch.Enabled = 1
+        End If
     End Function
 
     Function Loop_Files(vardirectory As String, masterdirectory As String, textfile As String, totalfiles As Int32) As Int32
@@ -830,16 +980,18 @@ Public Class Form1
 
     Private Async Function waitforminecraftclose() As Task
 
-        Try
-            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", ".MinecraftTemp")
-        Catch ex As Exception
-            MsgBox("Failed to rename .minecraft file. To temporary folder.")
-        End Try
+        If hasminecraftfolder = 1 Then
+            Try
+                My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.Minecraft\", ".MinecraftTemp")
+            Catch ex As Exception
+                MsgBox("Failed to rename .minecraft file to temporary folder. Ask Avvy what to do.")
+            End Try
+        End If
 
         Try
             My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\IHDir\", ".Minecraft")
         Catch ex As Exception
-            MsgBox("Failed to rename IHDir files. To .minecraft")
+            MsgBox("Failed to rename IHDir files to .minecraft. Ask Avvy what to do.")
         End Try
 
         Dim newprocess As New ProcessStartInfo("CMD.EXE")
@@ -860,11 +1012,13 @@ Public Class Form1
             MsgBox("Failed to rename .minecraft files. To IHDir")
         End Try
 
-        Try
-            My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.MinecraftTemp\", ".Minecraft")
-        Catch ex As Exception
-            MsgBox("Failed to rename temporary folder to .minecraft folder.")
-        End Try
+        If hasminecraftfolder = 1 Then
+            Try
+                My.Computer.FileSystem.RenameDirectory(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\.MinecraftTemp\", ".Minecraft")
+            Catch ex As Exception
+                MsgBox("Failed to rename temporary folder to .minecraft folder. Restart the launcher to attempt again.")
+            End Try
+        End If
 
     End Function
 
@@ -877,5 +1031,322 @@ Public Class Form1
 
     End Sub
 
+    Private Sub form1_resize(sender As Object, e As EventArgs) Handles Me.Resize
+        If worldmapvisible = 0 Then
+            dynmap_browser.Location = New Point(Me.Width, 0)
+        Else
+            dynmapresizer()
+        End If
+    End Sub
 
+    Private Async Sub btn_worldmap_Click(sender As Object, e As EventArgs) Handles btn_worldmap.Click
+
+        'disable all assets
+        Text_Display_Gui.Enabled = 0
+        lbl_creator_credits.Enabled = 0
+        changelog_bbox.Enabled = 0
+        changelog_text.Enabled = 0
+        btn_credits.Enabled = 0
+        btn_changelog.Enabled = 0
+        tickbox_launcherstay.Enabled = 0
+        btn_Launch.Enabled = 0
+        btn_worldmap.Enabled = 0
+
+        worldmapvisible = 1
+
+        dynmap_browser.Source = New Uri("http://infinitehorizons.apexmc.co:8123/?worldname=InfiniteHorizonsWorld&mapname=flat")
+        dynmap_browser.Reload()
+
+    End Sub
+
+    Private Sub dynmap_browser_Click(sender As Object, e As EventArgs) Handles dynmap_browser.Click
+
+    End Sub
+
+    Private Sub handledynmapload() Handles dynmap_browser.NavigationCompleted
+        If worldmapvisible = True Then
+            'set all assets to not be visible
+            Text_Display_Gui.Visible = 0
+            lbl_creator_credits.Visible = 0
+            changelog_bbox.Visible = 0
+            changelog_text.Visible = 0
+            btn_credits.Visible = 0
+            btn_changelog.Visible = 0
+            btn_Launch.Visible = 0
+            tickbox_launcherstay.Visible = 0
+            btn_worldmap.Visible = 0
+
+            'enable map specific items
+            btn_returnfrommap.Visible = 1
+            btn_returnfrommap.Enabled = 1
+            lbl_playername.Visible = 1
+            tbox_playername.Visible = 1
+            tbox_playername.Enabled = 1
+            btn_set_playername.Enabled = 1
+            btn_set_playername.Visible = 1
+            btn_launchpos.Visible = 1
+            btn_launchpos.Enabled = 1
+            tbox_xpos.Enabled = 1
+            tbox_xpos.Visible = 1
+            tbox_zpos.Visible = 1
+            tbox_zpos.Enabled = 1
+            lbl_xpos.Visible = 1
+            lbl_zpos.Visible = 1
+            lbl_dimension.Visible = 1
+            dbox_dimensions.Visible = 1
+            dbox_dimensions.Enabled = 1
+            btn_dimensions.Visible = 1
+            btn_dimensions.Enabled = 1
+            btn_reload_map.Visible = 1
+            btn_reload_map.Enabled = 1
+
+            'set the location for the browser, and orientation
+            dynmapresizer()
+        End If
+    End Sub
+
+    Private Sub dynmapresizer()
+        dynmap_browser.Location = New Point(0, 0)
+        dynmap_browser.Size = New Point(Me.Width, Me.Height)
+    End Sub
+
+    Private Sub btn_returnfrommap_Click(sender As Object, e As EventArgs) Handles btn_returnfrommap.Click
+
+        'set all assets to be visible
+        Text_Display_Gui.Visible = 1
+        lbl_creator_credits.Visible = 1
+        btn_credits.Visible = 1
+        btn_changelog.Visible = 1
+        btn_Launch.Visible = 1
+        tickbox_launcherstay.Visible = 1
+        btn_worldmap.Visible = 1
+
+        'disable map based assets
+        lbl_playername.Visible = 0
+        tbox_playername.Visible = 0
+        tbox_playername.Enabled = 0
+        btn_returnfrommap.Visible = 0
+        btn_returnfrommap.Enabled = 0
+        btn_set_playername.Enabled = 0
+        btn_set_playername.Visible = 0
+        btn_launchpos.Visible = 0
+        btn_launchpos.Enabled = 0
+        tbox_xpos.Enabled = 0
+        tbox_xpos.Visible = 0
+        tbox_zpos.Visible = 0
+        tbox_zpos.Enabled = 0
+        lbl_xpos.Visible = 0
+        lbl_zpos.Visible = 0
+        lbl_dimension.Visible = 0
+        dbox_dimensions.Visible = 0
+        dbox_dimensions.Enabled = 0
+        btn_dimensions.Visible = 0
+        btn_dimensions.Enabled = 0
+        btn_reload_map.Visible = 0
+        btn_reload_map.Enabled = 0
+
+        'enable all assets
+        Text_Display_Gui.Enabled = 1
+        lbl_creator_credits.Enabled = 1
+        changelog_bbox.Enabled = 1
+        changelog_text.Enabled = 1
+        btn_credits.Enabled = 1
+        btn_changelog.Enabled = 1
+        tickbox_launcherstay.Enabled = 1
+        btn_worldmap.Enabled = 1
+
+        btn_Launch.Enabled = canlaunch
+
+        'set the location for the browser, and orientation
+        dynmap_browser.Location = New Point(Me.Width, 0)
+
+        worldmapvisible = 0
+
+    End Sub
+
+    Private Sub playerfollowtype(sender As Object, e As EventArgs) Handles tbox_playername.TextChanged
+        tbox_playername.Text = tbox_playername.Text.Replace(" ", "")
+        tbox_playername.SelectionStart = tbox_playername.Text.Length
+    End Sub
+
+    Private Sub playerfollowtext(sender As Object, e As System.Windows.Forms.KeyPressEventArgs) Handles Me.KeyPress
+        If tbox_playername.Focused Then
+            If e.KeyChar = Microsoft.VisualBasic.ChrW(Keys.Return) Then
+                btn_set_playername_Click()
+            End If
+        End If
+        If tbox_zpos.Focused Then
+            If e.KeyChar = Microsoft.VisualBasic.ChrW(Keys.Return) Then
+                btn_launchpos_Click()
+            End If
+        End If
+    End Sub
+
+    Private Async Sub btn_set_playername_Click() Handles btn_set_playername.Click
+
+        Dim newaddress As String = ""
+
+        If (tbox_playername.Text = "") Then
+            newaddress = "http://infinitehorizons.apexmc.co:8123/?worldname=" + mapdimension + "&mapname=flat"
+
+        Else
+            newaddress = "http://infinitehorizons.apexmc.co:8123/?worldname=" + mapdimension + "&mapname=flat" + "&playername=" + tbox_playername.Text
+        End If
+
+
+        dynmap_browser.Source = New Uri(newaddress)
+        dynmap_browser.Focus()
+    End Sub
+
+    Private Sub textboxx(sender As Object, e As EventArgs) Handles tbox_xpos.TextChanged
+        Dim isneg As Boolean = False
+
+        If tbox_xpos.Text.Contains("-") Then
+            isneg = True
+        End If
+
+        If isneg Then
+            tbox_xpos.Text = "-" + Regex.Replace(tbox_xpos.Text.Replace("-", ""), "[^0-9]", "")
+        Else
+            tbox_xpos.Text = Regex.Replace(tbox_xpos.Text.Replace("-", ""), "[^0-9]", "")
+        End If
+
+        tbox_xpos.SelectionStart = tbox_xpos.Text.Length
+    End Sub
+
+    Private Sub textboxz(sender As Object, e As EventArgs) Handles tbox_zpos.TextChanged
+        Dim isneg As Boolean = False
+        If tbox_zpos.Text.Contains("-") Then
+            isneg = True
+        End If
+
+        If isneg Then
+            tbox_zpos.Text = "-" + Regex.Replace(tbox_zpos.Text.Replace("-", ""), "[^0-9]", "")
+        Else
+            tbox_zpos.Text = Regex.Replace(tbox_zpos.Text.Replace("-", ""), "[^0-9]", "")
+        End If
+
+        tbox_zpos.SelectionStart = tbox_zpos.Text.Length
+    End Sub
+
+    Private Sub btn_launchpos_Click() Handles btn_launchpos.Click
+
+        Dim newaddress As String = ""
+
+        If tbox_xpos.Text.Length = 0 Then
+            tbox_xpos.Text = "0"
+        End If
+        If tbox_zpos.Text.Length = 0 Then
+            tbox_zpos.Text = "0"
+        End If
+
+        newaddress = "http://infinitehorizons.apexmc.co:8123/?worldname=" + mapdimension + "&mapname=flat" + "&x=" + tbox_xpos.Text + "&z=" + tbox_zpos.Text
+
+        If Not dynmap_browser.Source = New Uri(newaddress) Then
+            dynmap_browser.Source = New Uri(newaddress)
+        Else
+            dynmap_browser.Reload()
+        End If
+
+        dynmap_browser.Focus()
+
+    End Sub
+
+    Private Sub btn_dimensions_Click() Handles btn_dimensions.Click
+        Select Case dbox_dimensions.Text
+            Case "Overworld"
+                mapdimension = "InfiniteHorizonsWorld"
+            Case "Overworld Orbit"
+                mapdimension = "ad_astra_earth_orbit"
+            Case "The End"
+                mapdimension = "DIM1"
+            Case "The Nether"
+                mapdimension = "DIM-1"
+            Case "Create Moon"
+                mapdimension = "creatingspace_the_moon"
+            Case "Create Moon Orbit"
+                mapdimension = "creatingspace_moon_orbit"
+            Case "Create Earth Orbit"
+                mapdimension = "creatingspace_earth_orbit"
+            Case "Endor"
+                mapdimension = "swplanets_endor"
+            Case "Endor Orbit"
+                mapdimension = "swplanets_endor_orbit"
+            Case "Glacio"
+                mapdimension = "ad_astra_glacio"
+            Case "Glacio Orbit"
+                mapdimension = "ad_astra_glacio_orbit"
+            Case "Hot"
+                mapdimension = "swplanets_hot"
+            Case "Hot Orbit"
+                mapdimension = "swplanets_hot_orbit"
+            Case "Lost Cities"
+                mapdimension = "lostcities_lostcity"
+            Case "Mahou Reality Marble"
+                mapdimension = "mahoutsukai_reality_marble"
+            Case "Mandalore"
+                mapdimension = "swplanets_mandalore"
+            Case "Mandalore Orbit"
+                mapdimension = "swplanets_mandalore_orbit"
+            Case "Mars"
+                mapdimension = "ad_astra_mars"
+            Case "Mars Orbit"
+                mapdimension = "ad_astra_mars_orbit"
+            Case "Mercury"
+                mapdimension = "ad_astra_mercury"
+            Case "Mercury Orbit"
+                mapdimension = "ad_astra_mercury_orbit"
+            Case "Moon"
+                mapdimension = "ad_astra_moon"
+            Case "Moon Orbit"
+                mapdimension = "ad_astra_moon_orbit"
+            Case "Mustafar"
+                mapdimension = "swplanets_mustafar"
+            Case "Mustafar Orbit"
+                mapdimension = "swplanets_mustafar_orbit"
+            Case "Normal Planet"
+                mapdimension = "ad_astra_proxima_plus_normalplanet"
+            Case "Proxima Asteroid Belt"
+                mapdimension = "ad_astra_proxima_plus_proxima_asteroid_belt"
+            Case "Proxima Asteroid Belt Orbit"
+                mapdimension = "ad_astra_proxima_plus_proxima_asteroid_belt_orbit"
+            Case "Proxima B"
+                mapdimension = "ad_astra_proxima_plus_proxima_b"
+            Case "Proxima B Orbit"
+                mapdimension = "ad_astra_proxima_plus_proxima_b_orbit"
+            Case "Proxima C"
+                mapdimension = "ad_astra_proxima_plus_proxima_c"
+            Case "Proxima C Orbit"
+                mapdimension = "ad_astra_proxima_plus_proxima_c_orbit"
+            Case "Proxima D"
+                mapdimension = "ad_astra_proxima_plus_proxima_d"
+            Case "Proxima D Orbit"
+                mapdimension = "ad_astra_proxima_plus_proxima_d_orbit"
+            Case "Tattooine"
+                mapdimension = "swplanets_tatooine"
+            Case "Tattooine Orbit"
+                mapdimension = "swplanets_tatooine_orbit"
+            Case "Venus"
+                mapdimension = "ad_astra_venus"
+            Case "Venus Orbit"
+                mapdimension = "ad_astra_venus_orbit"
+            Case "Vicino"
+                mapdimension = "ad_astra_proxima_plus_vicino"
+            Case "Vicino Orbit"
+                mapdimension = "ad_astra_proxima_plus_vicino_orbit"
+        End Select
+
+        Dim newaddress As String = "http://infinitehorizons.apexmc.co:8123/?worldname=" + mapdimension + "&mapname=flat"
+
+        If Not dynmap_browser.Source = New Uri(newaddress) Then
+            dynmap_browser.Source = New Uri(newaddress)
+        Else
+            dynmap_browser.Reload()
+        End If
+
+    End Sub
+
+    Private Sub btn_reload_map_Click(sender As Object, e As EventArgs) Handles btn_reload_map.Click
+        dynmap_browser.Reload()
+    End Sub
 End Class
